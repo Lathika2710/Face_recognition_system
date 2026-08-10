@@ -94,7 +94,7 @@ Visit: `http://127.0.0.1:5000`
 
 ```
 Username: admin
-Password: admin123
+Password: admin12
 ```
 
 Use this default account only for initial access, then create a new user or change the password.
