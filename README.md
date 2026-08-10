@@ -93,7 +93,7 @@ Visit: `http://127.0.0.1:5000`
 ## Default Login
 
 ```
-Username: admin
+Username: Admin
 Password: admin12
 ```
 
