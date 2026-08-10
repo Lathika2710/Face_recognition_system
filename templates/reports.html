@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}Reports{% endblock %}
+{% block topbar_title %}Reports{% endblock %}
+{% block topbar_sub %}<span class="dot dot-success"></span> Attendance and recognition insights{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="fade-in-up">
+  <div class="flex justify-between items-center mb-24">
+    <p class="text-sm text-muted">Export current attendance data</p>
+    <div class="flex gap-8">
+      <a href="/api/reports/export/csv" class="btn btn-outline btn-sm">Export CSV</a>
+      <a href="/api/reports/export/excel" class="btn btn-outline btn-sm">Export Excel</a>
+      <a href="/api/reports/export/pdf" class="btn btn-primary btn-sm">Export PDF</a>
+    </div>
+  </div>
+
+  <div class="reports-grid">
+    <div class="card chart-card">
+      <h3 style="margin-bottom:16px;">Attendance Trend (Last 7 Days)</h3>
+      <canvas id="trendChart"></canvas>
+    </div>
+    <div class="card chart-card">
+      <h3 style="margin-bottom:16px;">Known vs Unknown</h3>
+      <canvas id="knownChart"></canvas>
+    </div>
+    <div class="card chart-card">
+      <h3 style="margin-bottom:16px;">Department-wise Attendance</h3>
+      <canvas id="deptChart"></canvas>
+    </div>
+    <div class="card">
+      <h3 style="margin-bottom:16px;">Most Frequently Recognized</h3>
+      <div id="topPeopleList"></div>
+    </div>
+    <div class="card chart-card reports-grid-full">
+      <h3 style="margin-bottom:16px;">Recognition Activity Today (by hour)</h3>
+      <canvas id="activityChart"></canvas>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const chartColors = { blue: "#4f6df5", purple: "#8b5cf6", green: "#17b26a", amber: "#f79009", grid: "rgba(108,92,231,0.08)" };
+Chart.defaults.font.family = "Inter";
+Chart.defaults.color = "#5b5b78";
+
+async function loadReports() {
+  try {
+    const data = await apiFetch("/api/reports/summary");
+
+    new Chart(document.getElementById("trendChart"), {
+      type: "line",
+      data: {
+        labels: data.attendance_trend.map(t => t.date.slice(5)),
+        datasets: [{
+          label: "Attendance",
+          data: data.attendance_trend.map(t => t.count),
+          borderColor: chartColors.blue,
+          backgroundColor: "rgba(79,109,245,0.12)",
+          fill: true, tension: 0.4, pointRadius: 4, pointBackgroundColor: chartColors.blue,
+        }]
+      },
+      options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, grid: { color: chartColors.grid } }, x: { grid: { display: false } } } }
+    });
+
+    new Chart(document.getElementById("knownChart"), {
+      type: "doughnut",
+      data: {
+        labels: ["Known", "Unknown"],
+        datasets: [{ data: [data.known_vs_unknown.known, data.known_vs_unknown.unknown], backgroundColor: [chartColors.green, chartColors.amber], borderWidth: 0 }]
+      },
+      options: { plugins: { legend: { position: "bottom" } }, cutout: "68%" }
+    });
+
+    new Chart(document.getElementById("deptChart"), {
+      type: "bar",
+      data: {
+        labels: data.department_attendance.map(d => d.department),
+        datasets: [{ label: "Attendance", data: data.department_attendance.map(d => d.count), backgroundColor: chartColors.purple, borderRadius: 8 }]
+      },
+      options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, grid: { color: chartColors.grid } }, x: { grid: { display: false } } } }
+    });
+
+    new Chart(document.getElementById("activityChart"), {
+      type: "bar",
+      data: {
+        labels: data.activity_by_hour.map(a => a.hour + ":00"),
+        datasets: [{ label: "Events", data: data.activity_by_hour.map(a => a.count), backgroundColor: chartColors.blue, borderRadius: 6 }]
+      },
+      options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, grid: { color: chartColors.grid } }, x: { grid: { display: false } } } }
+    });
+
+    const list = document.getElementById("topPeopleList");
+    if (data.top_people.length === 0) {
+      list.innerHTML = '<div class="empty-state" style="padding:20px;">No recognition data yet.</div>';
+    } else {
+      list.innerHTML = data.top_people.map((p, i) => `
+        <div class="flex justify-between items-center" style="padding:10px 0; border-bottom:1px solid var(--border);">
+          <span style="font-size:13.5px; font-weight:600;">${i + 1}. ${p.full_name}</span>
+          <span class="badge badge-neutral">${p.visits} visits</span>
+        </div>
+      `).join("");
+    }
+  } catch (e) { showToast("Could not load reports", "error"); }
+}
+
+loadReports();
+</script>
+{% endblock %}

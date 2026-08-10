@@ -1,0 +1,288 @@
+{% extends "base.html" %}
+{% block title %}Register Person{% endblock %}
+{% block topbar_title %}Register New Person{% endblock %}
+{% block topbar_sub %}<span class="dot dot-success"></span> Add a new person to the recognition system{% endblock %}
+
+{% block content %}
+<div class="fade-in-up" style="max-width: 760px; margin: 0 auto;">
+  {% if unknown_snapshot %}
+  <div class="card" style="margin-bottom:20px;">
+    <h3 style="margin-bottom:10px;">Register Unknown Face</h3>
+    <p class="text-sm text-muted">This registration is linked to an unknown detection snapshot.</p>
+    <img src="/{{ unknown_snapshot }}" alt="Unknown snapshot" style="width:100%; max-width:320px; border-radius:16px; margin-top:10px;">
+  </div>
+  {% endif %}
+
+  <div class="stepper">
+    <div class="step-pill active" id="pill1"><span class="num">1</span> Personal Details</div>
+    <div class="step-connector"></div>
+    <div class="step-pill" id="pill2"><span class="num">2</span> Capture Face</div>
+    <div class="step-connector"></div>
+    <div class="step-pill" id="pill3"><span class="num">3</span> Confirmation</div>
+  </div>
+
+  <!-- STEP 1: Personal details -->
+  <div class="card" id="step1">
+    <h3 style="margin-bottom:4px;">Personal Details</h3>
+    <p class="text-sm text-muted mb-16">Only full name is required — fill in what's relevant.</p>
+
+    <div class="grid-2">
+      <div class="field-group">
+        <label>Full Name *</label>
+        <div class="field-input-wrap"><input type="text" id="fullName" placeholder="e.g. Lathika P" required></div>
+      </div>
+      <div class="field-group">
+        <label>Student / Employee ID</label>
+        <div class="field-input-wrap"><input type="text" id="personCode" placeholder="e.g. STU1024"></div>
+      </div>
+      <div class="field-group">
+        <label>Age</label>
+        <div class="field-input-wrap"><input type="number" id="age" min="1" max="120" placeholder="e.g. 21"></div>
+      </div>
+      <div class="field-group">
+        <label>Gender</label>
+        <div class="field-input-wrap">
+          <select id="gender">
+            <option value="">Select</option>
+            <option>Male</option><option>Female</option><option>Other</option><option>Prefer not to say</option>
+          </select>
+        </div>
+      </div>
+      <div class="field-group">
+        <label>Phone Number</label>
+        <div class="field-input-wrap"><input type="text" id="phone" placeholder="e.g. 9876543210"></div>
+      </div>
+      <div class="field-group">
+        <label>Email</label>
+        <div class="field-input-wrap"><input type="email" id="email" placeholder="name@example.com"></div>
+      </div>
+      <div class="field-group">
+        <label>Department</label>
+        <div class="field-input-wrap"><input type="text" id="department" placeholder="e.g. CSE"></div>
+      </div>
+      <div class="field-group">
+        <label>Role</label>
+        <div class="field-input-wrap">
+          <select id="role">
+            <option value="">Select</option>
+            <option>Student</option><option>Employee</option><option>Faculty</option><option>Visitor</option><option>Staff</option>
+          </select>
+        </div>
+      </div>
+      <div class="field-group">
+        <label>Date of Birth</label>
+        <div class="field-input-wrap"><input type="date" id="dob"></div>
+      </div>
+    </div>
+    <div class="field-group">
+      <label>Address</label>
+      <div class="field-input-wrap"><textarea id="address" placeholder="Optional"></textarea></div>
+    </div>
+
+    <div class="flex items-center gap-8" style="margin:6px 0 18px;">
+      <input type="checkbox" id="consentCheck" style="width:18px;height:18px;accent-color:var(--accent-violet);">
+      <label for="consentCheck" class="text-sm" style="cursor:pointer;">I have permission to store and process this person's face data.</label>
+    </div>
+
+    <div class="flex justify-between">
+      <span></span>
+      <button class="btn btn-primary" id="toStep2Btn">Continue to Face Capture →</button>
+    </div>
+  </div>
+
+  <!-- STEP 2: Capture face -->
+  <div class="card" id="step2" style="display:none;">
+    <h3 style="margin-bottom:4px;">Capture Face</h3>
+    <p class="text-sm text-muted mb-16" id="captureInstruction">Look straight at the camera</p>
+
+    <div class="camera-shell" style="max-width:520px; margin:0 auto;" id="regCameraShell">
+      <video id="regVideo" autoplay playsinline muted></video>
+      <canvas id="regOverlay" class="overlay"></canvas>
+      <div class="camera-placeholder" id="regPlaceholder">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+        <span>Click "Enable Camera" to begin capture</span>
+      </div>
+    </div>
+
+    <div style="max-width:520px; margin:18px auto 0;">
+      <div class="flex justify-between items-center">
+        <span class="text-sm text-muted">Face Samples</span>
+        <span class="text-sm" id="sampleCountLabel" style="font-weight:700;">0 / 5 captured</span>
+      </div>
+      <div class="face-sample-dots" id="sampleDots">
+        <div class="fs-dot"></div><div class="fs-dot"></div><div class="fs-dot"></div><div class="fs-dot"></div><div class="fs-dot"></div>
+      </div>
+
+      <div class="flex justify-between items-center" style="margin-top:6px;">
+        <span class="text-sm text-muted">Face Quality</span>
+        <span class="text-sm" id="qualityLabel" style="font-weight:700;">—</span>
+      </div>
+      <div class="quality-bar-track"><div class="quality-bar-fill" id="qualityBarFill" style="width:0%"></div></div>
+
+      <div id="captureFeedback" class="text-sm" style="margin-top:10px; min-height:18px;"></div>
+
+      <div class="flex items-center gap-12" style="margin-top:16px;">
+        <button class="btn btn-primary" id="enableCamBtn">Enable Camera</button>
+        <button class="btn btn-ghost" id="captureBtn" disabled>Capture Sample</button>
+        <button class="btn btn-outline" id="autoCaptureBtn" disabled>Auto-Capture 5</button>
+      </div>
+    </div>
+
+    <div class="flex justify-between" style="margin-top:26px;">
+      <button class="btn btn-outline" id="backToStep1Btn">← Back</button>
+      <button class="btn btn-primary" id="toStep3Btn" disabled>Continue to Confirmation →</button>
+    </div>
+  </div>
+
+  <!-- STEP 3: Confirmation -->
+  <div class="card" id="step3" style="display:none; text-align:center;">
+    <div id="confirmContent">
+      <div class="empty-state">
+        <p>Reviewing your details...</p>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const tempId = "reg_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8);
+let sampleCount = 0;
+const TARGET_SAMPLES = 5;
+const instructions = ["Look straight at the camera", "Turn slightly left", "Turn slightly right", "Tilt chin up slightly", "Look straight again"];
+
+const regVideo = document.getElementById("regVideo");
+const regOverlay = document.getElementById("regOverlay");
+let regStream = null;
+
+function showStep(n) {
+  [1, 2, 3].forEach(i => {
+    document.getElementById("step" + i).style.display = (i === n) ? "block" : "none";
+    const pill = document.getElementById("pill" + i);
+    pill.classList.remove("active", "done");
+    if (i < n) pill.classList.add("done");
+    if (i === n) pill.classList.add("active");
+  });
+}
+
+document.getElementById("toStep2Btn").addEventListener("click", () => {
+  const name = document.getElementById("fullName").value.trim();
+  if (!name) { showToast("Full name is required", "error"); return; }
+  if (!document.getElementById("consentCheck").checked) { showToast("Please confirm consent to store face data", "error"); return; }
+  showStep(2);
+});
+document.getElementById("backToStep1Btn").addEventListener("click", () => showStep(1));
+
+document.getElementById("enableCamBtn").addEventListener("click", async () => {
+  try {
+    regStream = await navigator.mediaDevices.getUserMedia({ video: { width: 480, height: 360 }, audio: false });
+    regVideo.srcObject = regStream;
+    document.getElementById("regPlaceholder").style.display = "none";
+    document.getElementById("captureBtn").disabled = false;
+    document.getElementById("autoCaptureBtn").disabled = false;
+    document.getElementById("enableCamBtn").disabled = true;
+  } catch (err) {
+    showToast("Camera unavailable: " + err.message, "error");
+  }
+});
+
+function captureFrameDataUrl() {
+  const canvas = document.createElement("canvas");
+  canvas.width = regVideo.videoWidth;
+  canvas.height = regVideo.videoHeight;
+  canvas.getContext("2d").drawImage(regVideo, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL("image/jpeg", 0.85);
+}
+
+async function captureSample() {
+  if (sampleCount >= TARGET_SAMPLES) return true;
+  const feedback = document.getElementById("captureFeedback");
+  try {
+    const imageData = captureFrameDataUrl();
+    const data = await apiFetch("/api/register/capture", { method: "POST", body: { temp_id: tempId, image: imageData } });
+
+    document.getElementById("qualityLabel").textContent = data.quality + "% " + (data.quality > 80 ? "Excellent" : data.quality > 60 ? "Good" : "Fair");
+    document.getElementById("qualityBarFill").style.width = data.quality + "%";
+
+    sampleCount = data.sample_count;
+    updateSampleDots();
+    feedback.style.color = "var(--success)";
+    feedback.textContent = "✓ Sample captured — " + (instructions[sampleCount] || "Great, keep going!");
+
+    if (sampleCount >= TARGET_SAMPLES) {
+      document.getElementById("toStep3Btn").disabled = false;
+      document.getElementById("captureBtn").disabled = true;
+      document.getElementById("autoCaptureBtn").disabled = true;
+      feedback.textContent = "✓ All 5 samples captured! Continue when ready.";
+    }
+    return true;
+  } catch (err) {
+    feedback.style.color = "var(--danger)";
+    feedback.textContent = "⚠ " + err.message;
+    return false;
+  }
+}
+
+function updateSampleDots() {
+  const dots = document.querySelectorAll("#sampleDots .fs-dot");
+  dots.forEach((d, i) => d.classList.toggle("filled", i < sampleCount));
+  document.getElementById("sampleCountLabel").textContent = `${sampleCount} / ${TARGET_SAMPLES} captured`;
+  document.getElementById("captureInstruction").textContent = instructions[Math.min(sampleCount, instructions.length - 1)];
+}
+
+document.getElementById("captureBtn").addEventListener("click", captureSample);
+
+document.getElementById("autoCaptureBtn").addEventListener("click", async () => {
+  document.getElementById("autoCaptureBtn").disabled = true;
+  document.getElementById("captureBtn").disabled = true;
+  while (sampleCount < TARGET_SAMPLES) {
+    await captureSample();
+    await new Promise(r => setTimeout(r, 1200));
+  }
+  document.getElementById("captureBtn").disabled = sampleCount >= TARGET_SAMPLES;
+});
+
+document.getElementById("toStep3Btn").addEventListener("click", async () => {
+  const payload = {
+    temp_id: tempId,
+    unknown_id: {{ unknown_id or 'null' }},
+    full_name: document.getElementById("fullName").value.trim(),
+    person_code: document.getElementById("personCode").value.trim(),
+    age: document.getElementById("age").value,
+    gender: document.getElementById("gender").value,
+    phone: document.getElementById("phone").value.trim(),
+    email: document.getElementById("email").value.trim(),
+    department: document.getElementById("department").value.trim(),
+    role: document.getElementById("role").value,
+    dob: document.getElementById("dob").value,
+    address: document.getElementById("address").value.trim(),
+    consent: document.getElementById("consentCheck").checked,
+  };
+
+  try {
+    const data = await apiFetch("/api/register/save", { method: "POST", body: payload });
+    if (regStream) regStream.getTracks().forEach(t => t.stop());
+    showStep(3);
+    document.getElementById("confirmContent").innerHTML = `
+      <div style="width:70px;height:70px;border-radius:50%;background:var(--success-bg);display:flex;align-items:center;justify-content:center;margin:0 auto 20px;">
+        <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#17b26a" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+      </div>
+      <h2 style="margin-bottom:8px;">Registration Successful ✓</h2>
+      <p class="text-muted" style="margin-bottom:24px;">Name: <strong>${data.full_name}</strong> · Face Samples: <strong>${data.sample_count}</strong> · Status: <strong>Active</strong></p>
+      <div class="flex" style="justify-content:center; gap:12px;">
+        <a href="/" class="btn btn-primary">Go to Dashboard</a>
+        <a href="/people/${data.person_id}" class="btn btn-outline">View Profile</a>
+      </div>`;
+    showToast("Person registered successfully", "success");
+  } catch (err) {
+    showToast(err.message, "error");
+  }
+});
+
+window.addEventListener("beforeunload", () => {
+  if (regStream) regStream.getTracks().forEach(t => t.stop());
+});
+</script>
+{% endblock %}

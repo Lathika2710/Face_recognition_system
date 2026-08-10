@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}Attendance{% endblock %}
+{% block topbar_title %}Attendance{% endblock %}
+{% block topbar_sub %}<span class="dot dot-success"></span> Automatically tracked from live recognition{% endblock %}
+
+{% block content %}
+<div class="fade-in-up">
+  <div class="filter-bar">
+    <div class="search-input-wrap">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+      <input type="text" id="searchInput" placeholder="Search by name or ID...">
+    </div>
+    <input type="date" id="dateFilter">
+    <select id="departmentFilter"><option value="">All Departments</option></select>
+    <button class="btn btn-outline btn-sm" id="clearFiltersBtn">Clear Filters</button>
+  </div>
+
+  <div class="card">
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr><th>Name</th><th>ID</th><th>Department</th><th>Date</th><th>Entry</th><th>Exit</th><th>Duration</th><th>Status</th></tr>
+        </thead>
+        <tbody id="attendanceBody">
+          <tr><td colspan="8" class="text-muted">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+async function loadFilters() {
+  const data = await apiFetch("/api/departments");
+  const sel = document.getElementById("departmentFilter");
+  data.departments.forEach(d => sel.innerHTML += `<option value="${d}">${d}</option>`);
+}
+
+function statusBadge(status) {
+  const map = { Present: "badge-success", Late: "badge-warning", Absent: "badge-danger" };
+  return `<span class="badge ${map[status] || 'badge-neutral'}">${status}</span>`;
+}
+
+async function loadAttendance() {
+  const body = document.getElementById("attendanceBody");
+  const params = new URLSearchParams({
+    q: document.getElementById("searchInput").value,
+    date: document.getElementById("dateFilter").value,
+    department: document.getElementById("departmentFilter").value,
+  });
+  try {
+    const data = await apiFetch("/api/attendance?" + params.toString());
+    if (data.attendance.length === 0) {
+      body.innerHTML = '<tr><td colspan="8" class="text-muted" style="padding:30px; text-align:center;">No attendance records found for this filter.</td></tr>';
+      return;
+    }
+    body.innerHTML = data.attendance.map(a => `
+      <tr>
+        <td style="font-weight:600;">${a.full_name}</td>
+        <td>${a.person_code || '—'}</td>
+        <td>${a.department || '—'}</td>
+        <td>${a.date}</td>
+        <td>${a.entry_time || '—'}</td>
+        <td>${a.exit_time || '—'}</td>
+        <td>${a.duration || '—'}</td>
+        <td>${statusBadge(a.status)}</td>
+      </tr>
+    `).join("");
+  } catch (e) {
+    body.innerHTML = '<tr><td colspan="8" class="text-muted">Could not load attendance.</td></tr>';
+  }
+}
+
+document.getElementById("searchInput").addEventListener("input", debounce(loadAttendance, 350));
+document.getElementById("dateFilter").addEventListener("change", loadAttendance);
+document.getElementById("departmentFilter").addEventListener("change", loadAttendance);
+document.getElementById("clearFiltersBtn").addEventListener("click", () => {
+  document.getElementById("searchInput").value = "";
+  document.getElementById("dateFilter").value = "";
+  document.getElementById("departmentFilter").value = "";
+  loadAttendance();
+});
+
+loadFilters();
+loadAttendance();
+</script>
+{% endblock %}

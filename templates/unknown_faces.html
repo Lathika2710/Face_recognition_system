@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}Unknown Faces{% endblock %}
+{% block topbar_title %}Unknown Faces{% endblock %}
+{% block topbar_sub %}<span class="dot dot-danger"></span> Unrecognized detections awaiting review{% endblock %}
+
+{% block content %}
+<div class="fade-in-up">
+  <div class="filter-bar">
+    <input type="date" id="dateFilter">
+    <button class="btn btn-outline btn-sm" id="clearFiltersBtn">Clear Filter</button>
+    <button class="btn btn-danger btn-sm" style="margin-left:auto;" id="clearAllBtn">Clear All</button>
+  </div>
+
+  <div class="people-grid" id="unknownGrid">
+    <div class="card skeleton" style="height:260px;"></div>
+    <div class="card skeleton" style="height:260px;"></div>
+    <div class="card skeleton" style="height:260px;"></div>
+  </div>
+</div>
+
+<!-- Snapshot preview modal -->
+<div class="modal-overlay" id="snapshotModal">
+  <div class="modal-box" style="max-width:420px;">
+    <h3 style="margin-bottom:14px;">Unknown Face Snapshot</h3>
+    <img id="snapshotImg" style="width:100%; border-radius:14px;" src="">
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('snapshotModal')">Close</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+async function loadUnknown() {
+  const grid = document.getElementById("unknownGrid");
+  const params = new URLSearchParams({ date: document.getElementById("dateFilter").value });
+  try {
+    const data = await apiFetch("/api/unknown-faces?" + params.toString());
+    if (!data || !Array.isArray(data.unknown_faces)) {
+      console.error("Unexpected unknown-faces response", data);
+      throw new Error("Invalid response from unknown faces API");
+    }
+    if (data.unknown_faces.length === 0) {
+      grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">
+        <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+        <p>No unknown faces detected. All clear!</p></div>`;
+      return;
+    }
+    grid.innerHTML = data.unknown_faces.map(u => `
+      <div class="card">
+        <img src="/${u.snapshot_path}" style="width:100%; height:160px; object-fit:cover; border-radius:12px; margin-bottom:14px; cursor:pointer;" onclick="viewSnapshot('/${u.snapshot_path}')" onerror="this.style.background='var(--accent-gradient-soft)'">
+        <div class="flex justify-between items-center mb-16">
+          <span class="badge badge-warning">Unknown Person</span>
+          <span class="text-sm text-muted">×${u.detection_count}</span>
+        </div>
+        <div class="text-sm text-muted" style="margin-bottom:4px;">Detected: ${u.first_seen}</div>
+        <div class="text-sm" style="margin-bottom:14px;">Confidence: <strong>${u.confidence}%</strong></div>
+        <div class="card-actions">
+          <button class="btn btn-ghost btn-sm" onclick="viewSnapshot('/${u.snapshot_path}')">View Snapshot</button>
+          <a href="/register?unknown_id=${u.id}" class="btn btn-primary btn-sm">Register Unknown</a>
+          <button class="btn btn-danger btn-sm" onclick="deleteUnknown(${u.id})">Delete</button>
+        </div>
+      </div>
+    `).join("");
+  } catch (e) {
+    console.error("Unknown faces load failed:", e);
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">Could not load unknown faces.<br><small>${e.message}</small></div>`;
+  }
+}
+
+function viewSnapshot(path) {
+  document.getElementById("snapshotImg").src = path;
+  openModal("snapshotModal");
+}
+
+function deleteUnknown(id) {
+  confirmAction({
+    title: "Delete Unknown Face",
+    message: "This snapshot and its record will be permanently removed.",
+    confirmLabel: "Delete",
+    onConfirm: async () => {
+      try {
+        await apiFetch(`/api/unknown-faces/${id}`, { method: "DELETE" });
+        showToast("Unknown face record deleted", "success");
+        loadUnknown();
+      } catch (e) { showToast(e.message, "error"); }
+    }
+  });
+}
+
+document.getElementById("clearAllBtn").addEventListener("click", () => {
+  confirmAction({
+    title: "Clear All Unknown Faces",
+    message: "This will permanently delete every unknown face record and snapshot. This cannot be undone.",
+    confirmLabel: "Clear All",
+    onConfirm: async () => {
+      try {
+        await apiFetch("/api/unknown-faces/clear-all", { method: "DELETE" });
+        showToast("All unknown faces cleared", "success");
+        loadUnknown();
+      } catch (e) { showToast(e.message, "error"); }
+    }
+  });
+});
+
+document.getElementById("dateFilter").addEventListener("change", loadUnknown);
+document.getElementById("clearFiltersBtn").addEventListener("click", () => {
+  document.getElementById("dateFilter").value = "";
+  loadUnknown();
+});
+
+loadUnknown();
+</script>
+{% endblock %}

@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Recognition History{% endblock %}
+{% block topbar_title %}Recognition History{% endblock %}
+{% block topbar_sub %}<span class="dot dot-success"></span> Full timeline of every recognition event{% endblock %}
+
+{% block content %}
+<div class="fade-in-up">
+  <div class="filter-bar">
+    <select id="knownFilter">
+      <option value="">All Events</option>
+      <option value="known">Known Only</option>
+      <option value="unknown">Unknown Only</option>
+    </select>
+    <input type="date" id="dateFilter">
+    <div class="search-input-wrap" style="max-width:260px;">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+      <input type="text" id="personFilter" placeholder="Filter by person name...">
+    </div>
+    <button class="btn btn-outline btn-sm" id="clearFiltersBtn">Clear Filters</button>
+  </div>
+
+  <div class="card">
+    <div class="timeline" id="historyTimeline">
+      <div class="skeleton" style="height:60px; margin-bottom:14px;"></div>
+      <div class="skeleton" style="height:60px; margin-bottom:14px;"></div>
+      <div class="skeleton" style="height:60px;"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+async function loadHistory() {
+  const container = document.getElementById("historyTimeline");
+  const params = new URLSearchParams({
+    known: document.getElementById("knownFilter").value,
+    date: document.getElementById("dateFilter").value,
+    person: document.getElementById("personFilter").value,
+  });
+  try {
+    const data = await apiFetch("/api/history?" + params.toString());
+    if (data.history.length === 0) {
+      container.innerHTML = `<div class="empty-state">
+        <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+        <p>No recognition events match this filter.</p></div>`;
+      return;
+    }
+    container.innerHTML = data.history.map(h => `
+      <div class="timeline-item ${h.is_known ? '' : 'unknown'}">
+        <div class="timeline-time">${h.recognized_at}</div>
+        <div style="font-weight:600; font-size:14px;">
+          ${h.is_known ? `✓ ${h.person_name || 'Known person'} recognized` : '⚠ Unknown face detected'}
+        </div>
+        <div class="text-sm text-muted">Confidence: ${h.confidence}%</div>
+      </div>
+    `).join("");
+  } catch (e) {
+    container.innerHTML = '<div class="empty-state">Could not load history.</div>';
+  }
+}
+
+document.getElementById("knownFilter").addEventListener("change", loadHistory);
+document.getElementById("dateFilter").addEventListener("change", loadHistory);
+document.getElementById("personFilter").addEventListener("input", debounce(loadHistory, 350));
+document.getElementById("clearFiltersBtn").addEventListener("click", () => {
+  document.getElementById("knownFilter").value = "";
+  document.getElementById("dateFilter").value = "";
+  document.getElementById("personFilter").value = "";
+  loadHistory();
+});
+
+loadHistory();
+</script>
+{% endblock %}

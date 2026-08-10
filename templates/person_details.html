@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+{% block title %}{{ person.full_name }}{% endblock %}
+{% block topbar_title %}Person Profile{% endblock %}
+{% block topbar_sub %}<span class="dot dot-success"></span> {{ person.full_name }}{% endblock %}
+
+{% block content %}
+<div class="fade-in-up grid-2" style="grid-template-columns: 1fr 2fr; align-items:start;">
+
+  <div class="card" style="text-align:center;">
+    {% if person.photo_path %}
+      <img src="/{{ person.photo_path }}" style="width:110px;height:110px;border-radius:50%;object-fit:cover;margin:0 auto 16px;border:3px solid #fff;box-shadow:var(--shadow-sm);" onerror="this.style.display='none'">
+    {% else %}
+      <div class="person-photo-fallback" style="width:110px;height:110px;font-size:32px;margin:0 auto 16px;">{{ person.full_name[0]|upper }}</div>
+    {% endif %}
+    <h3>{{ person.full_name }}</h3>
+    <p class="text-sm text-muted" style="margin-top:2px;">{{ person.person_code or 'No ID assigned' }}</p>
+    <div style="margin-top:12px;">
+      <span class="badge {% if person.status=='Active' %}badge-success{% else %}badge-neutral{% endif %}">{{ person.status }}</span>
+    </div>
+
+    <div style="text-align:left; margin-top:22px; border-top:1px solid var(--border); padding-top:18px;">
+      <div class="flex justify-between" style="padding:6px 0;"><span class="text-sm text-muted">Department</span><span class="text-sm" style="font-weight:600;">{{ person.department or '—' }}</span></div>
+      <div class="flex justify-between" style="padding:6px 0;"><span class="text-sm text-muted">Role</span><span class="text-sm" style="font-weight:600;">{{ person.role or '—' }}</span></div>
+      <div class="flex justify-between" style="padding:6px 0;"><span class="text-sm text-muted">Email</span><span class="text-sm" style="font-weight:600;">{{ person.email or '—' }}</span></div>
+      <div class="flex justify-between" style="padding:6px 0;"><span class="text-sm text-muted">Phone</span><span class="text-sm" style="font-weight:600;">{{ person.phone or '—' }}</span></div>
+      <div class="flex justify-between" style="padding:6px 0;"><span class="text-sm text-muted">Age</span><span class="text-sm" style="font-weight:600;">{{ person.age or '—' }}</span></div>
+      <div class="flex justify-between" style="padding:6px 0;"><span class="text-sm text-muted">Gender</span><span class="text-sm" style="font-weight:600;">{{ person.gender or '—' }}</span></div>
+    </div>
+
+    <div class="flex" style="flex-direction:column; gap:8px; margin-top:20px;">
+      <button class="btn btn-ghost btn-sm" onclick="openEditModal()">Edit Profile</button>
+      <a href="/attendance?person={{ person.id }}" class="btn btn-outline btn-sm">View Attendance</a>
+      <button class="btn btn-danger btn-sm" onclick="deleteThisPerson()">Delete Person</button>
+    </div>
+  </div>
+
+  <div>
+    <div class="stats-grid" style="grid-template-columns: repeat(4,1fr); margin-bottom:20px;">
+      <div class="card stat-card" style="padding:18px;">
+        <div class="stat-value" style="font-size:26px;" id="statVisits">—</div>
+        <div class="stat-label">Total Visits</div>
+      </div>
+      <div class="card stat-card" style="padding:18px;">
+        <div class="stat-value" style="font-size:26px;" id="statPresentDays">—</div>
+        <div class="stat-label">Present Days</div>
+      </div>
+      <div class="card stat-card" style="padding:18px;">
+        <div class="stat-value" style="font-size:16px;" id="statLastSeen">—</div>
+        <div class="stat-label">Last Seen</div>
+      </div>
+      <div class="card stat-card" style="padding:18px;">
+        <div class="stat-value" style="font-size:16px;">{{ person.created_at[:10] if person.created_at else '—' }}</div>
+        <div class="stat-label">First Registered</div>
+      </div>
+    </div>
+
+    <div class="card mb-24">
+      <h3 style="margin-bottom:16px;">Recognition History</h3>
+      <div id="historyList"><div class="skeleton" style="height:120px;"></div></div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-bottom:16px;">Recent Attendance</h3>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>Date</th><th>Entry</th><th>Exit</th><th>Status</th></tr></thead>
+          <tbody id="attendanceBody"><tr><td colspan="4" class="text-muted">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal-overlay" id="editModal">
+  <div class="modal-box">
+    <h3>Edit Profile</h3>
+    <div class="field-group" style="margin-top:16px;">
+      <label>Full Name</label>
+      <div class="field-input-wrap"><input type="text" id="editFullName" value="{{ person.full_name }}"></div>
+    </div>
+    <div class="field-group">
+      <label>Department</label>
+      <div class="field-input-wrap"><input type="text" id="editDepartment" value="{{ person.department or '' }}"></div>
+    </div>
+    <div class="field-group">
+      <label>Status</label>
+      <div class="field-input-wrap">
+        <select id="editStatus">
+          <option value="Active" {% if person.status=='Active' %}selected{% endif %}>Active</option>
+          <option value="Inactive" {% if person.status=='Inactive' %}selected{% endif %}>Inactive</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('editModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveEdit()">Save Changes</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const personId = {{ person_id }};
+
+async function loadDetails() {
+  try {
+    const data = await apiFetch(`/api/people/${personId}`);
+    document.getElementById("statVisits").textContent = data.total_visits;
+    document.getElementById("statPresentDays").textContent = data.present_days;
+    document.getElementById("statLastSeen").textContent = data.person.last_seen ? timeAgo(data.person.last_seen) : "Never";
+
+    const historyList = document.getElementById("historyList");
+    if (data.recent_history.length === 0) {
+      historyList.innerHTML = '<div class="empty-state" style="padding:20px;">No recognition events yet.</div>';
+    } else {
+      historyList.innerHTML = `<div class="timeline">` + data.recent_history.map(h => `
+        <div class="timeline-item ${h.is_known ? '' : 'unknown'}">
+          <div class="timeline-time">${h.recognized_at}</div>
+          <div style="font-weight:600; font-size:13.5px;">${h.is_known ? '✓ Recognized' : '⚠ Low confidence match'} · ${h.confidence}%</div>
+        </div>
+      `).join("") + `</div>`;
+    }
+
+    const body = document.getElementById("attendanceBody");
+    if (data.attendance.length === 0) {
+      body.innerHTML = '<tr><td colspan="4" class="text-muted">No attendance records yet.</td></tr>';
+    } else {
+      body.innerHTML = data.attendance.map(a => `
+        <tr>
+          <td>${a.date}</td>
+          <td>${a.entry_time || '—'}</td>
+          <td>${a.exit_time || '—'}</td>
+          <td><span class="badge ${a.status === 'Present' ? 'badge-success' : a.status === 'Late' ? 'badge-warning' : 'badge-neutral'}">${a.status}</span></td>
+        </tr>
+      `).join("");
+    }
+  } catch (e) { showToast("Could not load profile details", "error"); }
+}
+
+function openEditModal() { openModal("editModal"); }
+
+async function saveEdit() {
+  try {
+    await apiFetch(`/api/people/${personId}`, {
+      method: "PUT",
+      body: {
+        full_name: document.getElementById("editFullName").value.trim(),
+        department: document.getElementById("editDepartment").value.trim(),
+        status: document.getElementById("editStatus").value,
+      }
+    });
+    showToast("Profile updated", "success");
+    closeModal("editModal");
+    setTimeout(() => location.reload(), 700);
+  } catch (e) { showToast(e.message, "error"); }
+}
+
+function deleteThisPerson() {
+  confirmAction({
+    title: "Delete Person",
+    message: "This will permanently delete this person and all associated data. This cannot be undone.",
+    confirmLabel: "Delete",
+    onConfirm: async () => {
+      try {
+        await apiFetch(`/api/people/${personId}`, { method: "DELETE" });
+        showToast("Person deleted", "success");
+        setTimeout(() => window.location.href = "/people", 600);
+      } catch (e) { showToast(e.message, "error"); }
+    }
+  });
+}
+
+loadDetails();
+</script>
+{% endblock %}

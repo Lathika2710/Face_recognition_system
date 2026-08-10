@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+{% block topbar_title %}Settings{% endblock %}
+{% block topbar_sub %}<span class="dot dot-success"></span> Configure recognition, camera and security{% endblock %}
+
+{% block content %}
+<div class="fade-in-up" style="max-width:760px;">
+
+  <div class="card settings-section">
+    <h3>Recognition Settings</h3>
+    <p class="section-sub">Tune how strict face matching should be.</p>
+    <div class="slider-row">
+      <label>Recognition Threshold</label>
+      <input type="range" id="thresholdSlider" min="0.3" max="0.9" step="0.01" value="{{ settings.recognition_threshold }}">
+      <span class="val-badge" id="thresholdVal">{{ (settings.recognition_threshold|float * 100)|round(0) }}%</span>
+    </div>
+    <div class="slider-row">
+      <label>Face Detection Sensitivity</label>
+      <input type="range" id="sensitivitySlider" min="0.1" max="1" step="0.05" value="{{ settings.detection_sensitivity }}">
+      <span class="val-badge" id="sensitivityVal">{{ (settings.detection_sensitivity|float * 100)|round(0) }}%</span>
+    </div>
+    <div class="slider-row">
+      <label>Unknown-Face Cooldown (sec)</label>
+      <input type="range" id="cooldownSlider" min="5" max="120" step="5" value="{{ settings.unknown_cooldown_seconds }}">
+      <span class="val-badge" id="cooldownVal">{{ settings.unknown_cooldown_seconds }}s</span>
+    </div>
+    <button class="btn btn-primary btn-sm" id="saveRecognitionBtn">Save Recognition Settings</button>
+  </div>
+
+  <div class="card settings-section">
+    <h3>Camera Settings</h3>
+    <p class="section-sub">Recognition runs through your browser's webcam.</p>
+    <div class="grid-3">
+      <div class="field-group">
+        <label>Camera Device</label>
+        <div class="field-input-wrap"><input type="text" id="cameraDevice" value="{{ settings.camera_device }}" placeholder="0"></div>
+      </div>
+      <div class="field-group">
+        <label>Resolution</label>
+        <div class="field-input-wrap">
+          <select id="resolution">
+            <option {% if settings.resolution=='640x480' %}selected{% endif %}>640x480</option>
+            <option {% if settings.resolution=='1280x720' %}selected{% endif %}>1280x720</option>
+            <option {% if settings.resolution=='1920x1080' %}selected{% endif %}>1920x1080</option>
+          </select>
+        </div>
+      </div>
+      <div class="field-group">
+        <label>FPS</label>
+        <div class="field-input-wrap"><input type="number" id="fps" value="{{ settings.fps }}"></div>
+      </div>
+    </div>
+    <button class="btn btn-primary btn-sm" id="saveCameraBtn">Save Camera Settings</button>
+  </div>
+
+  <div class="card settings-section">
+    <h3>Security</h3>
+    <p class="section-sub">Manage admin credentials and session behavior.</p>
+    <div class="grid-2">
+      <div class="field-group">
+        <label>Current Password</label>
+        <div class="field-input-wrap"><input type="password" id="currentPassword" placeholder="••••••••"></div>
+      </div>
+      <div class="field-group">
+        <label>New Password</label>
+        <div class="field-input-wrap"><input type="password" id="newPassword" placeholder="At least 6 characters"></div>
+      </div>
+    </div>
+    <div class="slider-row">
+      <label>Session Timeout (minutes)</label>
+      <input type="range" id="sessionSlider" min="5" max="120" step="5" value="{{ settings.session_timeout }}">
+      <span class="val-badge" id="sessionVal">{{ settings.session_timeout }}m</span>
+    </div>
+    <button class="btn btn-primary btn-sm" id="changePasswordBtn">Update Password</button>
+  </div>
+
+  <div class="card settings-section danger-zone">
+    <h3 style="color:var(--danger);">Data Management</h3>
+    <p class="section-sub">Destructive actions — proceed with caution.</p>
+
+    <div class="danger-row">
+      <div><div class="dr-title">Backup Database</div><div class="dr-sub">Download a full .db snapshot</div></div>
+      <a href="/api/settings/backup-database" class="btn btn-outline btn-sm">Backup</a>
+    </div>
+    <div class="danger-row">
+      <div><div class="dr-title">Export Attendance Data</div><div class="dr-sub">CSV export of all attendance</div></div>
+      <a href="/api/reports/export/csv" class="btn btn-outline btn-sm">Export</a>
+    </div>
+    <div class="danger-row">
+      <div><div class="dr-title">Delete All Unknown Faces</div><div class="dr-sub">Removes all unknown-face snapshots and records</div></div>
+      <button class="btn btn-danger btn-sm" id="deleteUnknownBtn">Delete</button>
+    </div>
+    <div class="danger-row">
+      <div><div class="dr-title">Delete All Face Data</div><div class="dr-sub">Removes stored face encodings for every person (keeps profiles)</div></div>
+      <button class="btn btn-danger btn-sm" id="deleteFaceDataBtn">Delete</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function bindSlider(sliderId, valId, formatFn) {
+  const slider = document.getElementById(sliderId);
+  const val = document.getElementById(valId);
+  slider.addEventListener("input", () => { val.textContent = formatFn(slider.value); });
+}
+bindSlider("thresholdSlider", "thresholdVal", v => Math.round(v * 100) + "%");
+bindSlider("sensitivitySlider", "sensitivityVal", v => Math.round(v * 100) + "%");
+bindSlider("cooldownSlider", "cooldownVal", v => v + "s");
+bindSlider("sessionSlider", "sessionVal", v => v + "m");
+
+document.getElementById("saveRecognitionBtn").addEventListener("click", async () => {
+  try {
+    await apiFetch("/api/settings", { method: "POST", body: {
+      recognition_threshold: document.getElementById("thresholdSlider").value,
+      detection_sensitivity: document.getElementById("sensitivitySlider").value,
+      unknown_cooldown_seconds: document.getElementById("cooldownSlider").value,
+    }});
+    showToast("Recognition settings saved", "success");
+  } catch (e) { showToast(e.message, "error"); }
+});
+
+document.getElementById("saveCameraBtn").addEventListener("click", async () => {
+  try {
+    await apiFetch("/api/settings", { method: "POST", body: {
+      camera_device: document.getElementById("cameraDevice").value,
+      resolution: document.getElementById("resolution").value,
+      fps: document.getElementById("fps").value,
+    }});
+    showToast("Camera settings saved", "success");
+  } catch (e) { showToast(e.message, "error"); }
+});
+
+document.getElementById("changePasswordBtn").addEventListener("click", async () => {
+  const current = document.getElementById("currentPassword").value;
+  const next = document.getElementById("newPassword").value;
+  if (!current || !next) { showToast("Fill in both password fields", "error"); return; }
+  try {
+    await apiFetch("/api/settings/change-password", { method: "POST", body: { current_password: current, new_password: next } });
+    await apiFetch("/api/settings", { method: "POST", body: { session_timeout: document.getElementById("sessionSlider").value } });
+    showToast("Password updated successfully", "success");
+    document.getElementById("currentPassword").value = "";
+    document.getElementById("newPassword").value = "";
+  } catch (e) { showToast(e.message, "error"); }
+});
+
+document.getElementById("deleteUnknownBtn").addEventListener("click", () => {
+  confirmAction({
+    title: "Delete All Unknown Faces",
+    message: "This permanently removes every unknown-face snapshot and record. This cannot be undone.",
+    confirmLabel: "Delete All",
+    onConfirm: async () => {
+      try {
+        await apiFetch("/api/settings/delete-all-unknown", { method: "DELETE" });
+        showToast("All unknown faces deleted", "success");
+      } catch (e) { showToast(e.message, "error"); }
+    }
+  });
+});
+
+document.getElementById("deleteFaceDataBtn").addEventListener("click", () => {
+  confirmAction({
+    title: "Delete All Face Data",
+    message: "This permanently removes stored face encodings for every registered person. Profiles will remain but recognition will stop working until faces are re-captured. This cannot be undone.",
+    confirmLabel: "Delete All",
+    onConfirm: async () => {
+      try {
+        const res = await apiFetch("/api/settings/delete-all-face-data", { method: "DELETE" });
+        showToast(res.message || "All face data deleted", "success");
+      } catch (e) { showToast(e.message, "error"); }
+    }
+  });
+});
+</script>
+{% endblock %}

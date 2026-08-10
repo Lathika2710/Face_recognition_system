@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FaceAI — Create Account</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+<div class="login-shell">
+  <div class="login-left">
+    <div class="login-left-content">
+      <div class="login-eyebrow">◉ FaceAI Platform</div>
+      <h1 class="login-title">AI FACE<br>RECOGNITION<br>SYSTEM</h1>
+      <div class="login-sub-rotator">
+        <span>Smart Recognition</span>
+        <span>Secure Access</span>
+        <span>Real-Time Intelligence</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="login-right">
+    <div class="login-card glass">
+      <h2>Create Account</h2>
+      <p class="sub">Set up your admin account and access the dashboard</p>
+
+      <div class="login-error" id="signupError">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg>
+        <span id="signupErrorText">Please fix the errors above.</span>
+      </div>
+
+      <form id="signupForm">
+        <div class="field-group">
+          <label for="full_name">Full Name</label>
+          <div class="field-input-wrap">
+            <input type="text" id="full_name" name="full_name" placeholder="John Doe" autocomplete="name">
+          </div>
+        </div>
+        <div class="field-group">
+          <label for="username">Username</label>
+          <div class="field-input-wrap">
+            <input type="text" id="username" name="username" placeholder="admin" autocomplete="username" required>
+          </div>
+        </div>
+        <div class="field-group">
+          <label for="password">Password</label>
+          <div class="field-input-wrap">
+            <input type="password" id="password" name="password" placeholder="••••••••" autocomplete="new-password" required>
+            <button type="button" class="toggle-pw" id="toggleSignupPw">
+              <svg id="signupEyeIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="field-group">
+          <label for="confirm_password">Confirm Password</label>
+          <div class="field-input-wrap">
+            <input type="password" id="confirm_password" name="confirm_password" placeholder="••••••••" autocomplete="new-password" required>
+            <button type="button" class="toggle-pw" id="toggleSignupConfirmPw">
+              <svg id="signupConfirmEyeIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-block" id="signupBtn">
+          <span id="signupBtnText">Create Account</span>
+        </button>
+      </form>
+
+      <div class="form-footer">
+        <p>Already have an account? <a href="{{ url_for('login') }}">Sign in</a></p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.getElementById("signupForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById("signupBtn");
+  const btnText = document.getElementById("signupBtnText");
+  const errorBox = document.getElementById("signupError");
+  errorBox.classList.remove("show");
+
+  const full_name = document.getElementById("full_name").value.trim();
+  const username = document.getElementById("username").value.trim();
+  const password = document.getElementById("password").value;
+  const confirm_password = document.getElementById("confirm_password").value;
+
+  if (!username || !password || !confirm_password) {
+    document.getElementById("signupErrorText").textContent = "Username and password are required.";
+    errorBox.classList.add("show");
+    return;
+  }
+
+  if (password !== confirm_password) {
+    document.getElementById("signupErrorText").textContent = "Passwords do not match.";
+    errorBox.classList.add("show");
+    return;
+  }
+
+  btn.disabled = true;
+  btnText.innerHTML = '<span class="spinner"></span>';
+
+  try {
+    const res = await fetch("/signup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ full_name, username, password, confirm_password })
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      btnText.textContent = "Account created";
+      window.location.href = data.redirect;
+    } else {
+      throw new Error(data.error || "Unable to create account");
+    }
+  } catch (err) {
+    document.getElementById("signupErrorText").textContent = err.message;
+    errorBox.classList.add("show");
+    btn.disabled = false;
+    btnText.textContent = "Create Account";
+  }
+});
+
+function setupToggle(eyeId, inputId) {
+  const button = document.getElementById(eyeId);
+  const input = document.getElementById(inputId);
+  const icon = button.querySelector('svg');
+  button.addEventListener('click', () => {
+    if (input.type === 'password') {
+      input.type = 'text';
+      icon.innerHTML = '<path d="M17.94 17.94A10.94 10.94 0 0112 20c-7 0-11-8-11-8a21.6 21.6 0 015.06-6.06M9.9 4.24A10.4 10.4 0 0112 4c7 0 11 8 11 8a21.6 21.6 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><path d="M1 1l22 22"/>';
+    } else {
+      input.type = 'password';
+      icon.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
+    }
+  });
+}
+
+setupToggle('toggleSignupPw', 'password');
+setupToggle('toggleSignupConfirmPw', 'confirm_password');
+</script>
+</body>
+</html>

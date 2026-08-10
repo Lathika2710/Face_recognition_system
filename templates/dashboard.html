@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="fade-in-up mb-24">
+  <div class="stats-grid stagger" id="statsGrid">
+    <div class="card stat-card">
+      <div class="stat-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg></div>
+      <div class="stat-value" id="statPeople" data-counter="0">0</div>
+      <div class="stat-label">Registered People</div>
+      <div class="flex justify-between items-center" style="margin-top:10px;">
+        <span class="stat-delta" id="statPeopleDelta">+0 this month</span>
+      </div>
+      <div class="stat-desc">People registered in the system</div>
+    </div>
+
+    <div class="card stat-card">
+      <div class="stat-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg></div>
+      <div class="stat-value" id="statRecognized" data-counter="0">0</div>
+      <div class="stat-label">Recognized Today</div>
+      <div class="stat-desc">Unique known faces matched today</div>
+    </div>
+
+    <div class="card stat-card">
+      <div class="stat-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg></div>
+      <div class="stat-value" id="statUnknown" data-counter="0">0</div>
+      <div class="stat-label">Unknown Faces</div>
+      <div class="stat-desc">Unrecognized detections today</div>
+    </div>
+
+    <div class="card stat-card">
+      <div class="stat-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></div>
+      <div class="stat-value" id="statAttendance" data-counter="0">0</div>
+      <div class="stat-label">Attendance Today</div>
+      <div class="stat-desc">People marked present today</div>
+    </div>
+  </div>
+</div>
+
+<div class="card fade-in-up mb-24" style="animation-delay:.1s">
+  <div class="section-title-row">
+    <div>
+      <h3>System Status</h3>
+      <p class="text-sm text-muted" style="margin-top:4px;">Live health of the AI recognition pipeline</p>
+    </div>
+    <span class="badge badge-success" id="overallStatusBadge"><span class="dot dot-success"></span> All Systems Go</span>
+  </div>
+  <div class="status-card" id="statusGrid">
+    <div class="status-item">
+      <span class="dot dot-success"></span>
+      <div><div class="status-text">Camera Ready</div><div class="status-sub">Browser webcam access</div></div>
+    </div>
+    <div class="status-item">
+      <span class="dot dot-success" id="dotEngine"></span>
+      <div><div class="status-text" id="engineStatusText">Face Recognition Active</div><div class="status-sub">face_recognition engine</div></div>
+    </div>
+    <div class="status-item">
+      <span class="dot dot-success" id="dotDb"></span>
+      <div><div class="status-text">Database Connected</div><div class="status-sub">SQLite storage</div></div>
+    </div>
+    <div class="status-item">
+      <span class="dot dot-success" id="dotModel"></span>
+      <div><div class="status-text" id="modelStatusText">AI Model Ready</div><div class="status-sub">Encoding + matching model</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="grid-2 fade-in-up" style="animation-delay:.16s">
+  <div class="card">
+    <div class="section-title-row">
+      <h3>Quick Actions</h3>
+    </div>
+    <div class="flex gap-12" style="flex-wrap:wrap;">
+      <a href="{{ url_for('recognition') }}" class="btn btn-primary"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg> Start Live Recognition</a>
+      <a href="{{ url_for('register') }}" class="btn btn-ghost"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M20 8v6M23 11h-6"/></svg> Register New Person</a>
+      <a href="{{ url_for('reports') }}" class="btn btn-outline"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M18 17V9M13 17V5M8 17v-3"/></svg> View Reports</a>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="section-title-row">
+      <h3>Recent Activity</h3>
+      <a href="{{ url_for('history') }}" class="text-sm" style="color:var(--accent-violet); font-weight:600;">View all →</a>
+    </div>
+    <div id="recentActivityList">
+      <div class="skeleton" style="height:44px; margin-bottom:8px;"></div>
+      <div class="skeleton" style="height:44px; margin-bottom:8px;"></div>
+      <div class="skeleton" style="height:44px;"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+async function loadStats() {
+  try {
+    const data = await apiFetch("/api/stats");
+    animateCounter(document.getElementById("statPeople"), data.total_people);
+    animateCounter(document.getElementById("statRecognized"), data.recognized_today);
+    animateCounter(document.getElementById("statUnknown"), data.unknown_today);
+    animateCounter(document.getElementById("statAttendance"), data.attendance_today);
+    document.getElementById("statPeopleDelta").textContent = `+${data.new_this_month} this month`;
+
+    if (!data.engine_available) {
+      document.getElementById("dotEngine").className = "dot dot-danger";
+      document.getElementById("dotModel").className = "dot dot-danger";
+      document.getElementById("engineStatusText").textContent = "Face Recognition Unavailable";
+      document.getElementById("modelStatusText").textContent = "Install face_recognition";
+      document.getElementById("overallStatusBadge").className = "badge badge-warning";
+      document.getElementById("overallStatusBadge").innerHTML = '<span class="dot dot-danger"></span> Engine Missing';
+    }
+  } catch (e) { showToast("Could not load dashboard stats", "error"); }
+}
+
+async function loadRecentActivity() {
+  try {
+    const data = await apiFetch("/api/history?" + new URLSearchParams({}));
+    const list = document.getElementById("recentActivityList");
+    const items = data.history.slice(0, 5);
+    if (items.length === 0) {
+      list.innerHTML = '<div class="empty-state" style="padding:20px;">No activity yet. Start live recognition to see events here.</div>';
+      return;
+    }
+    list.innerHTML = items.map(h => `
+      <div class="flex items-center justify-between" style="padding:10px 0; border-bottom:1px solid var(--border);">
+        <div class="flex items-center gap-12">
+          <span class="dot ${h.is_known ? 'dot-success' : 'dot-danger'}"></span>
+          <span style="font-size:13.5px; font-weight:600;">${h.is_known ? (h.person_name || 'Known person') + ' recognized' : 'Unknown face detected'}</span>
+        </div>
+        <span class="text-sm text-muted">${timeAgo(h.recognized_at)}</span>
+      </div>
+    `).join("");
+  } catch (e) {
+    document.getElementById("recentActivityList").innerHTML = '<div class="empty-state" style="padding:20px;">Could not load activity.</div>';
+  }
+}
+
+loadStats();
+loadRecentActivity();
+</script>
+{% endblock %}

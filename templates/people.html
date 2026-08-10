@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}People{% endblock %}
+{% block topbar_title %}People{% endblock %}
+{% block topbar_sub %}<span class="dot dot-success"></span> Manage everyone registered in the system{% endblock %}
+
+{% block content %}
+<div class="fade-in-up">
+  <div class="filter-bar">
+    <div class="search-input-wrap">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+      <input type="text" id="searchInput" placeholder="Search people...">
+    </div>
+    <select id="departmentFilter"><option value="">All Departments</option></select>
+    <select id="roleFilter"><option value="">All Roles</option></select>
+    <select id="statusFilter">
+      <option value="">All Status</option>
+      <option value="Active">Active</option>
+      <option value="Inactive">Inactive</option>
+    </select>
+    <a href="{{ url_for('register') }}" class="btn btn-primary" style="margin-left:auto;">+ Register Person</a>
+  </div>
+
+  <div class="people-grid" id="peopleGrid">
+    <div class="card skeleton" style="height:220px;"></div>
+    <div class="card skeleton" style="height:220px;"></div>
+    <div class="card skeleton" style="height:220px;"></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+async function loadFilters() {
+  const data = await apiFetch("/api/departments");
+  const deptSel = document.getElementById("departmentFilter");
+  const roleSel = document.getElementById("roleFilter");
+  data.departments.forEach(d => deptSel.innerHTML += `<option value="${d}">${d}</option>`);
+  data.roles.forEach(r => roleSel.innerHTML += `<option value="${r}">${r}</option>`);
+}
+
+function statusBadge(status) {
+  if (status === "Active") return '<span class="badge badge-success">Active</span>';
+  return '<span class="badge badge-neutral">Inactive</span>';
+}
+
+async function loadPeople() {
+  const grid = document.getElementById("peopleGrid");
+  const params = new URLSearchParams({
+    q: document.getElementById("searchInput").value,
+    department: document.getElementById("departmentFilter").value,
+    role: document.getElementById("roleFilter").value,
+    status: document.getElementById("statusFilter").value,
+  });
+
+  try {
+    const data = await apiFetch("/api/people?" + params.toString());
+    if (data.people.length === 0) {
+      grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">
+        <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+        <p>No people found. Try adjusting filters or register a new person.</p>
+      </div>`;
+      return;
+    }
+    grid.innerHTML = data.people.map(p => `
+      <div class="card person-card">
+        ${p.photo_path
+          ? `<img class="person-photo" src="/${p.photo_path}" onerror="this.outerHTML='<div class=person-photo-fallback>${initials(p.full_name)}</div>'">`
+          : `<div class="person-photo-fallback">${initials(p.full_name)}</div>`}
+        <h4>${p.full_name}</h4>
+        <div class="person-id">${p.person_code || 'No ID'}</div>
+        <div class="person-meta-row">
+          ${p.department ? `<span class="badge badge-neutral">${p.department}</span>` : ""}
+          ${statusBadge(p.status)}
+        </div>
+        <div class="card-actions">
+          <a href="/people/${p.id}" class="btn btn-ghost btn-sm">View</a>
+          <button class="btn btn-danger btn-sm" onclick="deletePerson(${p.id}, '${p.full_name.replace(/'/g, "")}')">Delete</button>
+        </div>
+      </div>
+    `).join("");
+  } catch (e) {
+    grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1;">Could not load people.</div>';
+  }
+}
+
+function deletePerson(id, name) {
+  confirmAction({
+    title: "Delete Person",
+    message: `This will permanently delete ${name} and all associated face data, attendance and history. This cannot be undone.`,
+    confirmLabel: "Delete",
+    danger: true,
+    onConfirm: async () => {
+      try {
+        await apiFetch(`/api/people/${id}`, { method: "DELETE" });
+        showToast(`${name} was deleted`, "success");
+        loadPeople();
+      } catch (e) { showToast(e.message, "error"); }
+    }
+  });
+}
+
+document.getElementById("searchInput").addEventListener("input", debounce(loadPeople, 350));
+document.getElementById("departmentFilter").addEventListener("change", loadPeople);
+document.getElementById("roleFilter").addEventListener("change", loadPeople);
+document.getElementById("statusFilter").addEventListener("change", loadPeople);
+
+// Support ?q= from global search redirect
+const urlParams = new URLSearchParams(window.location.search);
+if (urlParams.get("q")) document.getElementById("searchInput").value = urlParams.get("q");
+
+loadFilters();
+loadPeople();
+</script>
+{% endblock %}

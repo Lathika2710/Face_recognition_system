@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+{% block title %}Live Recognition{% endblock %}
+{% block topbar_title %}Live Recognition{% endblock %}
+{% block topbar_sub %}<span class="dot dot-success"></span> Point the camera at a face to begin{% endblock %}
+
+{% block content %}
+<div class="grid-2 fade-in-up" style="grid-template-columns: 1.5fr 1fr; align-items:start;">
+
+  <div>
+    <div class="camera-shell" id="cameraShell">
+      <video id="video" autoplay playsinline muted></video>
+      <canvas id="overlay" class="overlay"></canvas>
+      <div class="camera-placeholder" id="cameraPlaceholder">
+        <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+        <span>Camera is off — click "Start Camera" to begin</span>
+      </div>
+      <div class="camera-scan-line" id="scanLine"></div>
+      <div class="camera-badge-row">
+        <span class="camera-pill"><span class="dot dot-success" id="camDot" style="display:none;"></span><span id="camStatusLabel">Camera Off</span></span>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-12 mb-16" style="margin-top:18px;">
+      <button class="btn btn-primary" id="startBtn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+        Start Camera
+      </button>
+      <button class="btn btn-outline" id="stopBtn" disabled>Stop Camera</button>
+      <span class="text-sm text-muted" id="recogFreqLabel">Scanning every 2s</span>
+    </div>
+  </div>
+
+  <div>
+    <div class="card fade-in-up" id="resultPanel" style="min-height:340px;">
+      <h3 style="margin-bottom:16px;">Recognition Result</h3>
+      <div id="resultContent">
+        <div class="empty-state">
+          <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+          <p>Start the camera to see live recognition results here.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card fade-in-up" style="margin-top:18px;">
+      <h3 style="margin-bottom:14px;">Recognition Threshold</h3>
+      <p class="text-sm text-muted" style="margin-bottom:10px;">Current threshold: <strong>{{ (threshold|float * 100) | round(0) }}%</strong> confidence — configurable in Settings.</p>
+      <div class="confidence-bar-track"><div class="confidence-bar-fill" style="width:{{ (threshold|float * 100) | round(0) }}%"></div></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const video = document.getElementById("video");
+const overlay = document.getElementById("overlay");
+const ctx = overlay.getContext("2d");
+const startBtn = document.getElementById("startBtn");
+const stopBtn = document.getElementById("stopBtn");
+const cameraShell = document.getElementById("cameraShell");
+const cameraPlaceholder = document.getElementById("cameraPlaceholder");
+const scanLine = document.getElementById("scanLine");
+const camDot = document.getElementById("camDot");
+const camStatusLabel = document.getElementById("camStatusLabel");
+const resultContent = document.getElementById("resultContent");
+
+let stream = null;
+let recognitionInterval = null;
+let processing = false;
+let lastKnownAlertAt = 0;
+
+async function startCamera() {
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: false });
+    video.srcObject = stream;
+    cameraPlaceholder.style.display = "none";
+    cameraShell.classList.add("scanning");
+    camDot.style.display = "inline-block";
+    camStatusLabel.textContent = "Camera Live";
+    startBtn.disabled = true;
+    stopBtn.disabled = false;
+
+    video.addEventListener("loadedmetadata", () => {
+      overlay.width = video.videoWidth;
+      overlay.height = video.videoHeight;
+    }, { once: true });
+
+    recognitionInterval = setInterval(captureAndRecognize, 2000);
+  } catch (err) {
+    if (err.name === "NotAllowedError") {
+      showToast("Camera permission denied. Please allow camera access.", "error");
+    } else if (err.name === "NotFoundError") {
+      showToast("No camera found. Please check your device.", "error");
+    } else {
+      showToast("Camera unavailable: " + err.message, "error");
+    }
+  }
+}
+
+function stopCamera() {
+  if (stream) {
+    stream.getTracks().forEach(t => t.stop());
+    stream = null;
+  }
+  clearInterval(recognitionInterval);
+  video.srcObject = null;
+  cameraPlaceholder.style.display = "flex";
+  cameraShell.classList.remove("scanning");
+  camDot.style.display = "none";
+  camStatusLabel.textContent = "Camera Off";
+  startBtn.disabled = false;
+  stopBtn.disabled = true;
+  ctx.clearRect(0, 0, overlay.width, overlay.height);
+}
+
+function captureFrameDataUrl() {
+  const canvas = document.createElement("canvas");
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  const c = canvas.getContext("2d");
+  c.drawImage(video, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL("image/jpeg", 0.75);
+}
+
+async function captureAndRecognize() {
+  if (processing || !stream || video.videoWidth === 0) return;
+  processing = true;
+  try {
+    const imageData = captureFrameDataUrl();
+    const data = await apiFetch("/api/recognize", { method: "POST", body: { image: imageData } });
+    renderFaces(data.faces || []);
+  } catch (err) {
+    // Silently skip a failed frame — don't spam toasts every 2s
+    console.warn("Recognition error:", err.message);
+  } finally {
+    processing = false;
+  }
+}
+
+function renderFaces(faces) {
+  ctx.clearRect(0, 0, overlay.width, overlay.height);
+
+  if (faces.length === 0) {
+    resultContent.innerHTML = `
+      <div class="empty-state">
+        <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><path d="M8 12h8"/></svg>
+        <p>No face detected in frame.</p>
+      </div>`;
+    return;
+  }
+
+  let html = "";
+  faces.forEach(f => {
+    const [top, right, bottom, left] = f.box;
+    const color = f.status === "known" ? "#17b26a" : "#f79009";
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 3;
+    ctx.strokeRect(left, top, right - left, bottom - top);
+    ctx.fillStyle = color;
+    ctx.font = "600 14px Inter";
+    const label = f.status === "known" ? f.name : "Unknown";
+    const textW = ctx.measureText(label).width;
+    ctx.fillRect(left, bottom, textW + 16, 24);
+    ctx.fillStyle = "#fff";
+    ctx.fillText(label, left + 8, bottom + 17);
+
+    if (f.status === "known") {
+      html += `
+        <div class="recog-result-panel">
+          <div class="flex items-center gap-8 mb-16">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#17b26a" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+            <span class="recog-badge-known" style="font-weight:700; font-size:14px;">RECOGNIZED</span>
+          </div>
+          <h3 style="font-size:20px;">${f.name}</h3>
+          <p class="text-sm text-muted" style="margin-top:2px;">Person ID: #${f.person_id}</p>
+          <div style="margin-top:16px;">
+            <div class="flex justify-between"><span class="text-sm text-muted">Confidence</span><span style="font-weight:700;">${f.confidence}%</span></div>
+            <div class="confidence-bar-track"><div class="confidence-bar-fill" style="width:${f.confidence}%"></div></div>
+          </div>
+          <a href="/people/${f.person_id}" class="btn btn-ghost btn-sm" style="margin-top:16px;">View Profile</a>
+        </div>`;
+    } else {
+      html += `
+        <div class="recog-result-panel">
+          <div class="flex items-center gap-8 mb-16">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f79009" stroke-width="2.5"><path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg>
+            <span class="recog-badge-unknown" style="font-weight:700; font-size:14px;">UNKNOWN FACE</span>
+          </div>
+          <p class="text-sm text-muted">Person not registered in the system</p>
+          <div style="margin-top:16px;">
+            <div class="flex justify-between"><span class="text-sm text-muted">Confidence</span><span style="font-weight:700;">${f.confidence}%</span></div>
+            <div class="confidence-bar-track"><div class="confidence-bar-fill low" style="width:${f.confidence}%"></div></div>
+          </div>
+          <a href="/register${f.unknown_id ? '?unknown_id=' + f.unknown_id : ''}" class="btn btn-primary btn-sm" style="margin-top:16px;">Register This Person</a>
+        </div>`;
+      if (Date.now() - lastKnownAlertAt > 5000) {
+        showToast("⚠ Unknown person detected", "warning");
+        lastKnownAlertAt = Date.now();
+      }
+    }
+  });
+  resultContent.innerHTML = html;
+}
+
+startBtn.addEventListener("click", startCamera);
+stopBtn.addEventListener("click", stopCamera);
+window.addEventListener("beforeunload", stopCamera);
+</script>
+{% endblock %}
