@@ -34,7 +34,7 @@ os.makedirs(UNKNOWN_DIR, exist_ok=True)
 os.makedirs(PROFILE_DIR, exist_ok=True)
 
 app = Flask(__name__)
-app.secret_key = "change-this-secret-key-in-production"
+app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key")
 
 # In-memory cooldown tracker for unknown-face de-duplication: {rounded_encoding_hash: last_seen_ts}
 _unknown_cooldown_cache = {}
