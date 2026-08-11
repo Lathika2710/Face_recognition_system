@@ -69,6 +69,9 @@ function showToast(message, type = "success", duration = 3800) {
   }, duration);
 }
 
+// Configurable API base — can be set via `window.API_BASE` or a meta tag
+const API_BASE = (typeof window !== 'undefined' && (window.API_BASE)) || (document.querySelector('meta[name="api-base"]')?.content) || "";
+
 // ---------------------------------------------------------------
 // Animated counters
 // ---------------------------------------------------------------
@@ -92,8 +95,9 @@ function animateCounter(el, target, duration = 900) {
 async function apiFetch(url, options = {}) {
   const opts = Object.assign({ headers: { "Content-Type": "application/json" }, credentials: "same-origin" }, options);
   if (opts.body && typeof opts.body !== "string") opts.body = JSON.stringify(opts.body);
+  const finalUrl = (typeof url === 'string' && url.startsWith('/') && API_BASE) ? (API_BASE.replace(/\/$/, '') + url) : url;
   try {
-    const res = await fetch(url, opts);
+    const res = await fetch(finalUrl, opts);
     const text = await res.text();
     let data = {};
     try { data = JSON.parse(text); } catch (err) { data = {}; }
